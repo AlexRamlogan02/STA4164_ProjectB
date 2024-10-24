@@ -5,3 +5,8 @@ df <- read.csv("StudentStressFactors.csv")
 attach(df)
 
 head(df)
+
+plot(sleepQuality, performance)
+
+model = lm(stressLevel ~ I((sleepQuality)^-1))
+plot(model)
