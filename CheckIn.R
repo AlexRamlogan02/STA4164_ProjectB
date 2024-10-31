@@ -54,3 +54,8 @@ residual_plotting <- function(residuals){
 }
 residual_plotting(full_model$residuals)
 
+altered_model <- lm(I(stressLevel) ~ ., data = df)
+
+residual_plotting(altered_model$residuals)
+
+##Normality may be violated?
