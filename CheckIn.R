@@ -9,8 +9,6 @@ attach(df)
 dim(df)
 
 summary(df)
-head(df)
-
 pairs(df)
 
 cor(df)
@@ -18,6 +16,7 @@ cor(df)
 ##model
 
 full_model <- lm(stressLevel ~ ., data = df)
+plot(full_model)
 crPlots(full_model)
 
 ##All of the component + residual plots are approximately linear, and don't need any transformations
