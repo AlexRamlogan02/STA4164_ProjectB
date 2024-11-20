@@ -6,7 +6,6 @@ library(Metrics)
 
 #headers have been changed from original state to be easier to code
 df <- read.csv("StudentStressFactors.csv") 
-attach(df)
 dim(df)
 
 summary(df)
@@ -16,59 +15,64 @@ cor(df)
 
 ##model
 
-full_model <- lm(stressLevel ~ ., data = df)
+full_model <- lm(df$stressLevel ~ df$sleepQuality + df$headaches + df$performance + df$studyLoad + df$extracurriculars, data = df)
 plot(full_model)
 crPlots(full_model)
+
+vif(full_model)
+
+summary(full_model)
 
 ##All of the component + residual plots are approximately linear, and don't need any transformations
 
 
-# Fit a new model with the transformed variable
-full_model <- lm( stressLevel ~ sleepQuality + studyLoad + extracurriculars + I(log(sleepQuality * studyLoad)^2), data = df)
-boxplot(sqrt_model)
-
-crPlots(full_model)
-
-
 #####Residual Analysis
 plot(full_model)
-par(mfrow = c(1, 1))
-#look at leverage
-leverageval <- (2 * 4)/520 
-print(leverageval)
-tail(sort(hatvalues(full_model))) 
-leverage <- hatvalues(model)
-violationLeverage <- which(leverage > leverageval)
-print(length(violationLeverage)) #35 in violation!!!
 
+#look at leverage
+leverageval <- (2 * length(coef(full_model)))/ 520
+print(leverageval)
+tail(sort(hatvalues(full_model)), n = 10) #since there's so many, will be using a function
+violations <- which(sort(hatvalues(full_model)) > leverageval)
+length(violations) #approximately 20
+
+print(leverageval)
+tail(sort(hatvalues(full_model)), n = 21)
 
 #look at cook's distance
 tail(sort(cooks.distance(full_model)), n = 10) # no violation
 
 #look at jackknife residual -> n - k - 2
-t <- qt(.025, 520 - 4 - 2, lower.tail = FALSE)
+t <- qt(.025, 520 - length(coef(full_model)) - 2, lower.tail = FALSE)
 print(t)
 
 jackKnife <- sort(studres(full_model)) 
 violationjackKnife <- which(abs(jackKnife) > t)
 
-print(violationjackKnife) ##5 in violation
+print(length(violationjackKnife)) ##5 in violation
 
 #jackknife
-head(sort(studres(full_model)), n=20) #Print 20 lowest values, none in violation
-tail(sort(studres(full_model)), n=20) #Print 20 highest values, 5 in violation
-
-#leverage
-print(leverageval)
-tail(sort(hatvalues(full_model)), n=) #Print 10 largest values, 6 in violation
+head(sort(studres(full_model)), n=25) #Print 25 lowest values, 15 in violation
+tail(sort(studres(full_model)), n=20) #Print 20 highest values, 15 in violation
 
 # Shapiro-Wilk Test for Normality
 shapiro.test(full_model$residuals) #violated -> check residuals
 
+
+# Fit a new model with the transformed variable
 boxCox(full_model)
 
+altered_model <- lm(I() ~  df$sleepQuality + df$headaches + df$performance + df$studyLoad + df$extracurriculars, data = df)
+plot(altered_model)
+plot(full_model)
+summary(altered_model)
+
+
+shapiro.test(altered_model$residuals) #Still violated -> proceed with original Y
+
+
+
 residual_plotting <- function(residuals){
-  
   m <- mean(residuals)
   s <- sd(residuals)
   hist_data <- hist(residuals, breaks=24)
@@ -77,29 +81,16 @@ residual_plotting <- function(residuals){
   y_values <- y_values * diff(hist_data$mids[1:2]) * length(residuals) 
   lines(x_values, y_values, lwd = 2)
 }
+residual_plotting(altered_model$residuals) #Plot looks okay,   
+#Normality might be violated, but not as strongly as before
+
 residual_plotting(full_model$residuals)
 
+crPlots(full_model)
 
-altered_model <- lm(I(sqrt(stressLevel)) ~ sleepQuality + studyLoad + extracurriculars + I(log(sleepQuality * studyLoad)^2), data = df) #none of the options look good
-boxCox(altered_model)
-
-residual_plotting(altered_model$residuals)
-
-# Shapiro-Wilk Test for Normality
-shapiro.test(altered_model$residuals) #still in violation, but we will move on anyways
-
-full_model <- altered_model
-
-#Co-linearity 
-options(scipen = 20)
-ols_coll_diag(full_model)
-
-#variable 5 is in violation, so remove 
-altered_model <- lm(I(sqrt(stressLevel)) ~ sleepQuality + studyLoad + extracurriculars, data = df)
-ols_coll_diag(altered_model)
-
-#VIF is ok, and CI is now ok!
-full_model <- altered_model
+#Creating interaction terms
+model_2 <- lm(df$stressLevel ~ df$sleepQuality + df$headaches + df$performance + df$studyLoad + df$extracurriculars + I(df$studyLoad * df$sleepQuality) + I(df$headaches * df$extracurriculars), data = df)
+anova(full_model, model_2)
 
 #set seed
 set.seed(1)
@@ -107,7 +98,7 @@ full <- df
 
 #Observastion numbers
 #Using 70% for training
-train=sample(1:nrow(full),nrow(full)*0.70) 
+train=sample(1:nrow(full),nrow(full)*0.50) 
 test=(-train)
 
 #testing and training split
@@ -118,10 +109,11 @@ print(train_data)
 print(test_data)
 
 # Selection Types
-attach(train_data)
+train_data
 
-final_model <- full_model
-model_all <- ols_step_all_possible(full_model)
+final_model <-  lm(train_data$stressLevel ~ train_data$sleepQuality + train_data$headaches + train_data$performance + train_data$studyLoad + train_data$extracurriculars + I(train_data$studyLoad * train_data$sleepQuality) + I(train_data$headaches * train_data$extracurriculars), data = train_data)
+model_all <- ols_step_all_possible(final_model)
+print(model_all)
 head(model_all[order(model_all$adjr, decreasing = T),])
 #plot(model_all)
 head(model_all[order(model_all$aic, decreasing = F),])
@@ -220,10 +212,9 @@ print(model_step2)
 
 
 #check reliability and model fit
-df2 <- train_data[,-c(2)]
 df2
 head(df2)
-final_model <- lm(I(sqrt(stressLevel)) ~ studyLoad + sleepQuality, data = df2)
+final_model <- lm(I(sqrt(df2$stressLevel)) ~ df2$headaches + df2$performance + df2$extracurriculars + I(df2$studyLoad * df2$sleepQuality) + I(df2$headaches * df2$extracurriculars), data = df2)
 
 summary(final_model)
 
@@ -233,3 +224,4 @@ mse(train_data$stressLevel, pred_train)
 
 pred_test <- predict(final_model, test_data)
 mse(test_data$stressLevel, pred_test)
+
